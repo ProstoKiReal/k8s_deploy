@@ -19,6 +19,15 @@ DEPLOY_DIR="${DEPLOY_DIR:-$(pwd)}"
 cd "$DEPLOY_DIR"
 echo "==> Deploy dir: $DEPLOY_DIR"
 
+# Load .env into this shell. `docker compose --env-file .env` only interpolates
+# .env inside the compose file — it does NOT export vars into this shell, so
+# without this the sanity checks (and the image-ref log lines below) can't see
+# SCRIPULYA_*_IMAGE and fail with "... is not set in .env".
+[ -f ./.env ] || { echo "!! .env not found in $DEPLOY_DIR (the deploy workflow must write it)" >&2; exit 1; }
+set -a
+. ./.env
+set +a
+
 # (1) GHCR auth only when both creds are present. Public packages pull
 # anonymously and skip this entirely.
 if [ -n "${GHCR_USER:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
