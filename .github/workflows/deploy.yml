@@ -120,6 +120,10 @@ jobs:
           MINIO_ROOT_USER:       ${{ secrets.MINIO_ROOT_USER }}
           MINIO_ROOT_PASSWORD:   ${{ secrets.MINIO_ROOT_PASSWORD }}
           MINIO_PUBLIC_ENDPOINT: ${{ secrets.MINIO_PUBLIC_ENDPOINT }}
+          # VPS_WG_IP is written into .env so docker-compose.prod.yml can bind the
+          # API + MinIO S3 ports to the WireGuard interface (not 0.0.0.0). It must
+          # equal the WG IP used for SSH above, and match MINIO_PUBLIC_ENDPOINT's host.
+          VPS_WG_IP:             ${{ secrets.VPS_WG_IP }}
           AI_IMAGE:    ghcr.io/${{ env.GHCR_OWNER }}/scripulya-ai:${{ inputs.image_tag }}
           AGENT_IMAGE: ghcr.io/${{ env.GHCR_OWNER }}/scripulya-agent:${{ inputs.image_tag }}
         run: |
@@ -144,6 +148,7 @@ jobs:
             echo "MINIO_ROOT_USER=${MINIO_ROOT_USER}"
             echo "MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}"
             echo "MINIO_PUBLIC_ENDPOINT=${MINIO_PUBLIC_ENDPOINT}"
+            echo "VPS_WG_IP=${VPS_WG_IP}"
             echo "MINIO_BUCKET_PUBLIC=scripulya-public"
             echo "MINIO_BUCKET_PRIVATE=scripulya-private"
             echo "SCRIPULYA_AI_IMAGE=${AI_IMAGE}"

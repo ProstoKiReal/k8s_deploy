@@ -130,7 +130,7 @@ secret**) add:
 
 | Secret | Required | Example / meaning |
 |--------|----------|-------------------|
-| `VPS_WG_IP` | yes | VPS's WG IP **without CIDR**, e.g. `10.7.0.1` |
+| `VPS_WG_IP` | yes | VPS's WG IP **without CIDR**, e.g. `10.7.0.1`. Also written into the VPS `.env` so `docker-compose.prod.yml` can bind the API (`:8000`) + MinIO S3 (`:9000`) to the WireGuard interface — must equal the host in `MINIO_PUBLIC_ENDPOINT`. |
 | `VPS_SSH_USER` | yes | SSH user, e.g. `deploy` |
 | `VPS_SSH_PORT` | no | SSH port (default `22`) |
 | `SSH_PRIVATE_KEY` | yes | Entire ed25519 private key file from Step 3 |
@@ -194,10 +194,23 @@ the containers whose image changed.
   flags it. Because the repos are public, that token is compromised — revoke it
   at github.com/settings/tokens and switch the remotes to SSH or a stored
   credential. None of these deploy files touch or commit that token.
-- **Firewall data-plane ports.** The compose file maps Redis/FalkorDB/MinIO/
-  RabbitMQ-mgmt to host ports for local dev. On the VPS, allow them only over
-  WireGuard (or not at all) with your firewall — the deploy itself only needs the
-  API (`:8000`) and MinIO S3 (`:9000`) to be client-reachable.
+- **Firewall / published ports (handled for you).** A host firewall
+  (**UFW/nftables**) does **not** protect Docker's published (`ports:`) bindings —
+  Docker writes its own iptables rules that bypass the INPUT chain, so any
+  `0.0.0.0` binding is public regardless of your firewall. `docker-compose.prod.yml`
+  avoids this by rebinding every port off `0.0.0.0`:
+  Redis (`:6379`) / FalkorDB (`:6380`) / RabbitMQ-mgmt (`:15673`) / MinIO console
+  (`:9001`) → `127.0.0.1` (VPS-local only), and the API (`:8000`) + MinIO S3
+  (`:9000`) → `${VPS_WG_IP}` so a phone that is a WireGuard peer reaches them while
+  the public interface serves nothing. The public interface therefore exposes only
+  what your firewall opens (SSH + WireGuard) — no manual firewall rules needed.
+  Caveat: if `VPS_WG_IP` is not in the VPS `.env`, the two app ports fall back to
+  `127.0.0.1` (nothing public, but the phone can't reach the app).
+- **Make the phone use the WG IP.** Because the API and MinIO are now reachable
+  only over WireGuard, set the GitHub secret `MINIO_PUBLIC_ENDPOINT` to
+  `<VPS_WG_IP>:9000` (e.g. `10.7.0.1:9000`) and point the app's API base URL at
+  `http://<VPS_WG_IP>:8000`. The traffic is plain HTTP but encrypted by WireGuard,
+  so no TLS/certificate is required.
 - **Avoid passing `GHCR_TOKEN` each deploy** by making the packages public (the
   repos already are) or running `docker login ghcr.io` once on the VPS; then
   leave `GHCR_USER`/`GHCR_TOKEN` empty.

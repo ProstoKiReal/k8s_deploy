@@ -16,12 +16,34 @@
 # Usage:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env pull
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env up -d --remove-orphans
+#
+# ── Firewall / port exposure ────────────────────────────────────────────────
+# Docker writes its own iptables rules (nat/PREROUTING + filter/FORWARD) that
+# BYPASS a host firewall's (UFW/nftables) INPUT chain for any published
+# `ports:` binding. So a `0.0.0.0` binding is reachable from the public internet
+# no matter what the firewall allows. To preserve the VPS's "only SSH + WireGuard
+# open" posture, this override REBINDS every published port OFF 0.0.0.0 using
+# Compose's `!override` tag (>= v2.24, already required by DEPLOY.md):
+#
+#   * Redis / FalkorDB / RabbitMQ-mgmt / MinIO console  -> 127.0.0.1 (VPS-local
+#     only; reach them over an SSH `ssh -L` tunnel through WireGuard if needed)
+#   * API (:8000) + MinIO S3 API (:9000)                 -> ${VPS_WG_IP} (the VPS's
+#     WireGuard IP) so a phone that is a WireGuard peer can reach them, while the
+#     public interface never serves them. Requires VPS_WG_IP in .env (e.g.
+#     10.7.0.1). If unset, these fall back to 127.0.0.1 — fail-closed: nothing is
+#     public, but the phone can't reach the app until VPS_WG_IP is set.
+#
+# Net effect: the public interface exposes only what your firewall opens (SSH +
+# WireGuard). The phone's API base URL and MINIO_PUBLIC_ENDPOINT must use that
+# same WG IP (traffic is HTTP, already encrypted by WireGuard, so no TLS needed).
 
 services:
   scripulya-ai:
     image: ${SCRIPULYA_AI_IMAGE:?SCRIPULYA_AI_IMAGE must be set in .env}
     container_name: scripulya-ai
     pull_policy: always
+    ports: !override
+      - "${VPS_WG_IP:-127.0.0.1}:8000:8000"
 
   scripulya-agent:
     image: ${SCRIPULYA_AGENT_IMAGE:?SCRIPULYA_AGENT_IMAGE must be set in .env}
@@ -33,3 +55,21 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  # Dev/admin ports -> loopback only (never reachable from the public interface).
+  redis:
+    ports: !override
+      - "127.0.0.1:6379:6379"
+
+  falkordb:
+    ports: !override
+      - "127.0.0.1:6380:6379"
+
+  rabbitmq:
+    ports: !override
+      - "127.0.0.1:15673:15672"
+
+  minio:
+    ports: !override
+      - "${VPS_WG_IP:-127.0.0.1}:9000:9000"   # S3 API — phone (WG peer) fetches image URLs here
+      - "127.0.0.1:9001:9001"                  # web console — VPS-local only
