@@ -1,0 +1,67 @@
+# FalkorDB — graph store for Graphiti (Phase 3 hybrid memory).
+# Optional: only needed when GRAPH_MEMORY_ENABLED=true. The backend degrades to empty
+# [KNOWN FACTS] when FalkorDB is absent, so an outage here never blocks chat generation.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: falkordb
+  namespace: scripulya
+  labels:
+    app.kubernetes.io/name: falkordb
+    app.kubernetes.io/part-of: scripulya
+spec:
+  selector:
+    app.kubernetes.io/name: falkordb
+  ports:
+    - name: falkordb
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: falkordb
+  namespace: scripulya
+  labels:
+    app.kubernetes.io/name: falkordb
+    app.kubernetes.io/part-of: scripulya
+spec:
+  serviceName: falkordb
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: falkordb
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: falkordb
+        app.kubernetes.io/part-of: scripulya
+    spec:
+      containers:
+        - name: falkordb
+          image: falkordb/falkordb:latest
+          ports:
+            - containerPort: 6379
+              name: falkordb
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi

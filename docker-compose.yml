@@ -30,6 +30,13 @@ services:
       MINIO_BUCKET_PRIVATE: ${MINIO_BUCKET_PRIVATE:-scripulya-private}
       MINIO_PRESIGN_EXPIRY_SECONDS: "900"
       MEDIA_MAX_UPLOAD_BYTES: "10485760"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      SUMMARY_ENABLED: ${SUMMARY_ENABLED:-true}
+      VECTOR_MEMORY_ENABLED: ${VECTOR_MEMORY_ENABLED:-true}
+      GRAPH_MEMORY_ENABLED: ${GRAPH_MEMORY_ENABLED:-false}
+      FALKORDB_HOST: falkordb
+      FALKORDB_PORT: "6379"
     networks:
       - scripulya-net
     depends_on:
@@ -40,6 +47,8 @@ services:
       minio:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      falkordb:
         condition: service_healthy
 
     healthcheck:
@@ -79,7 +88,7 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:15
+    image: pgvector/pgvector:pg15
     environment:
       POSTGRES_DB: dbname
       POSTGRES_USER: user
@@ -126,6 +135,22 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  falkordb:
+    image: falkordb/falkordb:latest
+    ports:
+      - "${FALKORDB_PORT:-6380}:6379"
+    volumes:
+      - falkordb_data:/data
+    networks:
+      - scripulya-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
@@ -196,3 +221,4 @@ volumes:
   postgres_data:
   minio_data:
   redis_data:
+  falkordb_data:

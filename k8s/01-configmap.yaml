@@ -42,6 +42,16 @@ data:
   MINIO_PRESIGN_EXPIRY_SECONDS: "900"
   MEDIA_MAX_UPLOAD_BYTES: "10485760"
 
+  # --- Hybrid memory (backend) ---
+  # Summary + pgvector are on by default; graph memory needs FalkorDB (14-falkordb.yaml)
+  # and OPENAI_API_KEY (Secret). Flip GRAPH_MEMORY_ENABLED to "true" once FalkorDB is up.
+  SUMMARY_ENABLED: "true"
+  VECTOR_MEMORY_ENABLED: "true"
+  GRAPH_MEMORY_ENABLED: "false"
+  FALKORDB_HOST: falkordb.scripulya.svc.cluster.local
+  FALKORDB_PORT: "6379"
+  OPENAI_BASE_URL: https://api.openai.com/v1
+
   # --- scripulya_agent (worker) ---
   LLM_REQUEST_QUEUE: llm.agent.request
   LLM_RESULT_QUEUE: llm.agent.result
