@@ -1,0 +1,35 @@
+# scripulya_deploy — production override for a VPS.
+#
+# Combined with docker-compose.yml by the GitHub Actions "Deploy to VPS" workflow
+# (and by `make prod-up`). It switches the two app services from local sibling-
+# source builds to prebuilt GHCR images and removes the VPS's dependency on the
+# scripulya_ai / scripulya_agent source trees (which are not present on the VPS):
+#
+#   * scripulya-ai / scripulya-agent -> image: ${SCRIPULYA_*_IMAGE} (GHCR), pulled
+#   * postgres init.sql              -> ./init.sql (placed by the deploy workflow)
+#   * minio-init (scene-image seeder) -> skipped (profiles:[seed]; dev-only)
+#
+# The base file's `build:` blocks are left in place but never exercised on the
+# VPS: `make prod-up` / the workflow run `pull` then `up -d` (no --build), so the
+# freshly pulled image satisfies the service and no local build/context is used.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env pull
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env up -d --remove-orphans
+
+services:
+  scripulya-ai:
+    image: ${SCRIPULYA_AI_IMAGE:?SCRIPULYA_AI_IMAGE must be set in .env}
+    container_name: scripulya-ai
+    pull_policy: always
+
+  scripulya-agent:
+    image: ${SCRIPULYA_AGENT_IMAGE:?SCRIPULYA_AGENT_IMAGE must be set in .env}
+    pull_policy: always
+
+  postgres:
+    # Override the sibling-source init.sql mount from the base file with a local
+    # copy that the deploy workflow places next to this compose file.
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro

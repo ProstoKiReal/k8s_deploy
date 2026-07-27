@@ -1,6 +1,7 @@
 # scripulya_deploy — run targets for the unified scripulya system.
-# Two paths:
+# Three paths:
 #   * Docker Compose (primary, local):  make up | down | logs | ps | reseed
+#   * Production VPS (GHCR images):     make prod-up | prod-logs | prod-ps
 #   * Kubernetes (target: kind):        make deploy-kind | status | pf | delete
 
 APPS_DIR     ?= ..
@@ -24,12 +25,12 @@ help: ## Show this help
 
 # ============================= Docker Compose ===============================
 .PHONY: up down restart logs logs-ai logs-agent ps reseed seed-media regen-media mock-up mock-down
-up:         ## Build & start the full stack (postgres, rabbitmq, ai, agent)
-	docker compose up -d --build
+up:         ## Build & start the full stack incl. media seeding (postgres, rabbitmq, ai, agent)
+	docker compose --profile seed up -d --build
 down:       ## Stop the stack (keeps data volume)
 	docker compose down
-restart:    ## Restart app services (rebuild)
-	docker compose up -d --build
+restart:    ## Restart app services incl. media seeding (rebuild)
+	docker compose --profile seed up -d --build
 logs:       ## Tail all logs
 	docker compose logs -f
 logs-ai:    ## Tail the backend logs
@@ -40,15 +41,34 @@ ps:         ## Show container status
 	docker compose ps
 reseed:     ## Wipe the DB volume and re-seed from init.sql, then restart
 	docker compose down -v
-	docker compose up -d --build
+	docker compose --profile seed up -d --build
 seed-media: ## (Re)run MinIO scene-image seeder (skips existing; restores from ./media-backup cache first, so free after a down -v)
-	docker compose run --rm minio-init
+	docker compose --profile seed run --rm minio-init
 regen-media: ## Force re-generate EVERY scene image (ignores the cache AND existing objects)
-	FORCE_REGENERATE_MEDIA=1 docker compose run --rm minio-init
+	FORCE_REGENERATE_MEDIA=1 docker compose --profile seed run --rm minio-init
 mock-up:    ## Start the optional mock-google-api
 	docker compose --profile mock-google up -d --build mock-google-api
 mock-down:  ## Stop the optional mock-google-api
 	docker compose --profile mock-google rm -sf mock-google-api
+
+# ============================== Production (VPS) =============================
+# The GHCR/VPS path. Combines the base compose with docker-compose.prod.yml so
+# the app images are pulled from GHCR instead of built from sibling source.
+# The GitHub Actions "Deploy to VPS" workflow runs these remotely over SSH; you
+# can also run them by hand on the VPS. Requires SCRIPULYA_*_IMAGE in .env.
+COMPOSE_PROD = docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env
+.PHONY: prod-pull prod-up prod-down prod-logs prod-ps
+prod-pull:  ## Pull the latest GHCR app images
+	$(COMPOSE_PROD) pull
+prod-up:    ## Pull then start the prod stack (no local build)
+	$(COMPOSE_PROD) pull
+	$(COMPOSE_PROD) up -d --remove-orphans
+prod-down:  ## Stop the prod stack (keeps data volumes)
+	$(COMPOSE_PROD) down
+prod-logs:  ## Tail prod logs
+	$(COMPOSE_PROD) logs -f
+prod-ps:    ## Show prod container status
+	$(COMPOSE_PROD) ps
 
 # ============================== Kubernetes ==================================
 .PHONY: gen-secrets gen-init-sql build-images load-kind apply deploy-kind \

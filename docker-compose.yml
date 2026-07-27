@@ -178,6 +178,7 @@ services:
 
   minio-init:
     image: scripulya-ai:dev
+    profiles: ["seed"]
     depends_on:
       postgres:
         condition: service_healthy

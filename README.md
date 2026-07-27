@@ -10,6 +10,7 @@ Two interchangeable run paths are provided:
 | Path | When | Command |
 |------|------|---------|
 | **Docker Compose** (primary) | Local dev / quick start | `make up` |
+| **VPS via GitHub Actions** | Production (prebuilt GHCR images) | "Deploy to VPS" button → [`docs/DEPLOY.md`](docs/DEPLOY.md) |
 | **Kubernetes** (target: kind) | Cluster-style / prod rehearsal | `make deploy-kind` |
 
 ---
@@ -108,6 +109,22 @@ of the data volume. To force a re-seed:
 ```bash
 make reseed        # docker compose down -v && up  (wipes ALL DB data)
 ```
+
+---
+
+## Deploy to a VPS via GitHub Actions (production)
+
+For a real server, use the **"Deploy to VPS"** button (this repo's **Actions**
+tab). It pulls the prebuilt GHCR images onto the VPS over an ephemeral WireGuard
+tunnel and writes `.env` from **GitHub Secrets** — nothing sensitive is ever
+committed, and the VPS needs no source checkout.
+
+Full one-time setup (publishing the GHCR packages, adding the WireGuard peer,
+installing the SSH key, and the **complete secret list**) lives in
+**[docs/DEPLOY.md](docs/DEPLOY.md)**.
+
+You can run the same prod stack by hand on the VPS: `make prod-up` ·
+`make prod-logs` · `make prod-ps` · `make prod-down`.
 
 ---
 
@@ -291,12 +308,15 @@ Set it wrong and every image URL 404s (presigned `Host` mismatch / unreachable).
 
 ```
 scripulya_deploy/
-├── docker-compose.yml        # PRIMARY: unified local stack
-├── .env.example              # placeholder secrets (single source for both paths)
-├── Makefile                  # compose + kind targets
+├── docker-compose.yml        # PRIMARY: unified local stack (builds from siblings)
+├── docker-compose.prod.yml   # PROD override: pull GHCR images, local init.sql
+├── .env.example              # placeholder secrets (single source for all paths)
+├── Makefile                  # compose + prod + kind targets
+├── .github/workflows/        # deploy.yml — the "Deploy to VPS" button
+├── docs/DEPLOY.md            # VPS deploy setup guide + full secret list
 ├── k8s/                      # portable manifests (namespace, config, secret example,
 │   │                           postgres/rabbit StatefulSets, ai/agent Deployments,
 │   │                           optional ingress, optional mock-google)
-└── scripts/                  # gen-secrets.sh, gen-init-sql-cm.sh,
+└── scripts/                  # deploy-vps.sh, gen-secrets.sh, gen-init-sql-cm.sh,
                                # load-images-kind.sh, kind-power.sh, port-forward.sh
 ```
