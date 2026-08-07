@@ -4,6 +4,7 @@ services:
   scripulya-ai:
     build:
       context: ${APPS_DIR:-..}/scripulya_ai
+      # context: ${APPS_DIR:-..}/dreamescape_ai TO FIX uncomment this line
       dockerfile: build/Dockerfile
     image: scripulya-ai:dev
     ports:
@@ -62,6 +63,7 @@ services:
   scripulya-agent:
     build:
       context: ${APPS_DIR:-..}/scripulya_agent
+      # context: ${APPS_DIR:-..}/llm_api_agent TO FIX uncomment this line
       dockerfile: Dockerfile
     image: scripulya-agent:dev
     environment:
@@ -87,6 +89,41 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  ollama:
+    &ollama
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - scripulya-net
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  ollama-init:
+    <<: *ollama
+    container_name: ollama-init
+    command: pull qwen3:0.6b
+    ports: []
+    healthcheck:
+      disable: true
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: "no"
+
   postgres:
     image: pgvector/pgvector:pg15
     environment:
@@ -97,6 +134,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ${APPS_DIR:-..}/scripulya_ai/scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # - ${APPS_DIR:-..}/dreamescape_ai/scripts/init.sql:/docker-entrypoint-initdb.d/init.sql:ro TO FIX uncomment this line
     networks:
       - scripulya-net
     restart: unless-stopped
@@ -198,6 +236,7 @@ services:
     volumes:
       - ${APPS_DIR:-..}/scripulya_ai/scripts/seed_minio_media.py:/app/scripts/seed_minio_media.py:ro
       - ./media-backup:/media-backup
+      # - ${APPS_DIR:-..}/dreamescape_ai/scripts/seed_minio_media.py:/app/scripts/seed_minio_media.py:ro TO FIX uncomment this line
     command: ["python", "/app/scripts/seed_minio_media.py"]
     restart: "no"
     networks:
@@ -207,6 +246,7 @@ services:
     profiles: ["mock-google"]
     build:
       context: ${APPS_DIR:-..}/scripulya_ai
+      # context: ${APPS_DIR:-..}/dreamescape_ai TO FIX uncomment this line
       dockerfile: google_api_mock/Dockerfile
     image: scripulya-mock-google-api:dev
     networks:
@@ -223,3 +263,4 @@ volumes:
   minio_data:
   redis_data:
   falkordb_data:
+  ollama_data:
