@@ -73,3 +73,39 @@ services:
     ports: !override
       - "${VPS_WG_IP:-127.0.0.1}:9000:9000"   # S3 API — phone (WG peer) fetches image URLs here
       - "127.0.0.1:9001:9001"                  # web console — VPS-local only
+
+
+  ollama:
+    &ollama
+    image: ollama/ollama:0.32.6-rocm
+    container_name: ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - scripulya-net
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  ollama-init:
+    <<: *ollama
+    container_name: ollama-init
+    command: pull qwen3:0.6b
+    ports: []
+    healthcheck:
+      disable: true
+    environment:
+      OLLAMA_HOST: ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: "no"
