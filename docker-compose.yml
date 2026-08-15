@@ -19,6 +19,8 @@ services:
       RABBIT_URL: amqp://guest:guest@rabbitmq:5672/
       LLM_AGENT_REQUEST_QUEUE: llm.agent.request
       LLM_AGENT_RESULT_QUEUE: llm.agent.result
+      SUMMARY_REQUEST_QUEUE: llm.summary.request
+      SUMMARY_RESULT_QUEUE: llm.summary.result
       LLM_AGENT_TIMEOUT: "60"
       REDIS_URL: redis://redis:6379/0
       MINIO_INTERNAL_ENDPOINT: minio:9000
